@@ -7,61 +7,58 @@ from langchain.memory import ConversationBufferWindowMemory
 import torch
 import datetime
 from typing import Any, Dict, Union
-from functions.context_engineering import get_context_data
+from mlfs.airquality.context_engineering import get_context_data
 import os
 from safetensors.torch import load_model, save_model
 
 def load_model(model_id: str = "teknium/OpenHermes-2.5-Mistral-7B") -> tuple:
     """
-    Load the LLM and its corresponding tokenizer.
-
-    Args:
-        model_id (str, optional): Identifier for the pre-trained model. Defaults to "teknium/OpenHermes-2.5-Mistral-7B".
-
-    Returns:
-        tuple: A tuple containing the loaded model and tokenizer.
+    Load the LLM and tokenizer safely (works on Mac without bitsandbytes).
+    Falls back to standard float16/float32 model if quantization is unavailable.
     """
+    import torch
+    import os
+    from transformers import AutoTokenizer, AutoModelForCausalLM
 
-    # Load the tokenizer for Mistral-7B-Instruct model
     tokenizer_path = "./mistral/tokenizer"
-    if os.path.isdir(tokenizer_path) == False:
+    if not os.path.isdir(tokenizer_path):
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokenizer.save_pretrained(tokenizer_path)
     else:
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
 
-    # Set the pad token to the unknown token to handle padding
     tokenizer.pad_token = tokenizer.unk_token
-
-    # Set the padding side to "right" to prevent warnings during tokenization
     tokenizer.padding_side = "right"
 
-    # BitsAndBytesConfig int-4 config
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16,
-    )
-
     model_path = "/tmp/mistral/model"
+
     if os.path.exists(model_path):
         print("Loading model from disk")
         model_llm = AutoModelForCausalLM.from_pretrained(model_path)
     else:
-        # Load the Mistral-7B-Instruct model with quantization configuration
+        # Detect Apple Silicon
+        if torch.backends.mps.is_available():
+            device = torch.device("mps")
+            print("🍏 Using Apple Metal Performance Shaders (MPS)")
+        elif torch.cuda.is_available():
+            device = torch.device("cuda")
+            print("🧠 Using NVIDIA GPU (CUDA)")
+        else:
+            device = torch.device("cpu")
+            print("⚙️ Using CPU mode")
+
+        # Standard (non-quantized) load
         model_llm = AutoModelForCausalLM.from_pretrained(
             model_id,
-            device_map="auto",
-            quantization_config=bnb_config,
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            device_map=None,
         )
+
         model_llm.save_pretrained(model_path)
 
-
-    # Configure the pad token ID in the model to match the tokenizer's pad token ID
     model_llm.config.pad_token_id = tokenizer.pad_token_id
-
     return model_llm, tokenizer
+
 
 
 def get_prompt_template():
