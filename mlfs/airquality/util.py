@@ -287,14 +287,107 @@ def check_file_path(file_path):
     else:
         print(f"File successfully found at the path: {file_path}")
 
+"""
 def backfill_predictions_for_monitoring(weather_fg, air_quality_df, monitor_fg, model):
-    features_df = weather_fg.read()
-    features_df = features_df.sort_values(by=['date'], ascending=True)
-    features_df = features_df.tail(10)
-    features_df['predicted_pm25'] = model.predict(features_df[['temperature_2m_mean', 'precipitation_sum', 'wind_speed_10m_max', 'wind_direction_10m_dominant']])
-    df = pd.merge(features_df, air_quality_df[['date','pm25','street','country']], on="date")
-    df['days_before_forecast_day'] = 1
-    hindcast_df = df
-    df = df.drop('pm25', axis=1)
-    monitor_fg.insert(df, write_options={"wait_for_job": True})
+features_df = weather_fg.read()
+features_df = features_df.sort_values(by=['date'], ascending=True)
+features_df = features_df.tail(10)
+features_df['predicted_pm25'] = model.predict(features_df[['temperature_2m_mean', 'precipitation_sum', 'wind_speed_10m_max', 'wind_direction_10m_dominant']])
+df = pd.merge(features_df, air_quality_df[['date','pm25','street','country']], on="date")
+df['days_before_forecast_day'] = 1
+hindcast_df = df
+df = df.drop('pm25', axis=1)
+monitor_fg.insert(df, write_options={"wait_for_job": True})
+"""
+
+
+def backfill_predictions_for_monitoring(weather_fg, air_quality_df, monitor_fg, model, city=None, street=None, expected_feature_names=None):
+    """
+    Create day-1 hindcast rows when none exist yet by predicting on the most recent
+    weather rows and joining with actual outcomes. Supports models that expect
+    lag features and pm25_roll3 by synthesizing them from recent history.
+    """
+    # Read weather and normalize
+    weather_df = weather_fg.read()
+    if city is not None and 'city' in weather_df.columns:
+        weather_df = weather_df[weather_df['city'] == city]
+    weather_df = weather_df.sort_values(by=['date'], ascending=True)
+    weather_df['date'] = pd.to_datetime(weather_df['date'], utc=True).dt.tz_convert(None)
+    weather_df = weather_df.tail(10)
+
+    # Determine expected columns from model if not provided
+    expected_cols = expected_feature_names
+    if expected_cols is None:
+        try:
+            expected_cols = model.get_booster().feature_names
+        except Exception:
+            expected_cols = None
+
+    # Prepare air quality history for lags/roll3 and meta fields
+    aq_df = air_quality_df.copy()
+    aq_df['date'] = pd.to_datetime(aq_df['date'], utc=True).dt.tz_convert(None)
+    if city is not None:
+        aq_df = aq_df[aq_df['city'] == city]
+    if street is not None:
+        aq_df = aq_df[aq_df['street'] == street]
+    aq_df = aq_df.sort_values('date')
+
+    # Last true pm25 values for lag computation
+    last_vals = list(aq_df['pm25'].tail(3).astype('float32')) if 'pm25' in aq_df.columns else []
+
+    # Build predictions over the most recent weather rows
+    preds = []
+    for _, row in weather_df.iterrows():
+        # roll3 from last 3 values
+        if len(last_vals) == 0:
+            roll3 = float('nan')
+        else:
+            roll3 = float(pd.Series(last_vals[-3:]).mean())
+
+        feat = {
+            'temperature_2m_mean': float(row['temperature_2m_mean']),
+            'precipitation_sum': float(row['precipitation_sum']),
+            'wind_speed_10m_max': float(row['wind_speed_10m_max']),
+            'wind_direction_10m_dominant': float(row['wind_direction_10m_dominant']),
+            'pm25_roll3': float(roll3),
+            # Provide lag features unconditionally; model will pick what it needs
+            'pm25_lag1': float(last_vals[-1]) if len(last_vals) >= 1 else float('nan'),
+            'pm25_lag2': float(last_vals[-2]) if len(last_vals) >= 2 else float('nan'),
+            'pm25_lag3': float(last_vals[-3]) if len(last_vals) >= 3 else float('nan'),
+        }
+
+        if expected_cols is not None and len(expected_cols) > 0:
+            feature_cols = expected_cols
+        else:
+            feature_cols = ['temperature_2m_mean','precipitation_sum','wind_speed_10m_max','wind_direction_10m_dominant','pm25_roll3']
+
+        X = pd.DataFrame([{col: feat.get(col, float('nan')) for col in feature_cols}])
+        yhat = float(model.predict(X)[0])
+        preds.append({'date': row['date'], 'predicted_pm25': yhat})
+        last_vals.append(yhat)
+
+    preds_df = pd.DataFrame(preds)
+    # Join predictions with outcomes and meta (city, street, country)
+    join_cols = ['date','pm25','street','country','city'] if 'city' in aq_df.columns else ['date','pm25','street','country']
+    outcome_join = aq_df[join_cols]
+    hindcast_df = pd.merge(preds_df, outcome_join, on='date', how='left')
+    hindcast_df = hindcast_df.sort_values('date')
+    hindcast_df['days_before_forecast_day'] = 1
+
+    # Insert monitoring rows (preds + identifiers)
+    insert_df = hindcast_df.drop(columns=['pm25'], errors='ignore')
+    # Ensure identifiers are present and non-null strings per FG schema
+    if city is not None:
+        if 'city' not in insert_df.columns:
+            insert_df['city'] = city
+        insert_df['city'] = insert_df['city'].fillna(city).astype(str)
+    if street is not None:
+        if 'street' not in insert_df.columns:
+            insert_df['street'] = street
+        insert_df['street'] = insert_df['street'].fillna(street).astype(str)
+    # Coerce date and days_before_forecast_day
+    insert_df['date'] = pd.to_datetime(insert_df['date'], utc=True).dt.tz_convert(None)
+    insert_df['days_before_forecast_day'] = insert_df['days_before_forecast_day'].fillna(1).astype(int)
+
+    monitor_fg.insert(insert_df, write_options={"wait_for_job": True})
     return hindcast_df
