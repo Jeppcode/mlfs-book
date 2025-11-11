@@ -1,0 +1,18 @@
+https://api.waqi.info/feed/A71104
+Norra Långgatan, Borgholm, Sweden
+Latitude: 56.87982457051902
+Longitude: 16.65778919093509
+Viktigt att notera: Stationen verkar ej vara i bruk då den efter 2025-08-20 har publicerat riktigt orimliga värden. Dessa datum är raderade i vår CSV Fill
+
+
+Gotland:
+https://api.waqi.info/feed/A376954
+Storvägen, Ljugarn, Sweden
+Latitide: 57.3378981583593
+Longitude: 18.700120215508033
+
+
+https://api.waqi.info/feed/A60076
+Östra Tvärgatan, Visby, Sweden
+Latitide: 57.6339483
+Longitude: 18.31051
