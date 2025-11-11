@@ -301,7 +301,7 @@ monitor_fg.insert(df, write_options={"wait_for_job": True})
 """
 
 
-def backfill_predictions_for_monitoring(weather_fg, air_quality_df, monitor_fg, model, city=None, street=None, expected_feature_names=None):
+def backfill_predictions_for_monitoring(weather_fg, air_quality_df, monitor_fg, model, city=None, street=None, expected_feature_names=None, country=None):
     """
     Create day-1 hindcast rows when none exist yet by predicting on the most recent
     weather rows and joining with actual outcomes. Supports models that expect
@@ -385,6 +385,16 @@ def backfill_predictions_for_monitoring(weather_fg, air_quality_df, monitor_fg, 
         if 'street' not in insert_df.columns:
             insert_df['street'] = street
         insert_df['street'] = insert_df['street'].fillna(street).astype(str)
+    # Fill country from param or from aq_df unique value if available
+    if 'country' in insert_df.columns:
+        if country is None and 'country' in aq_df.columns and aq_df['country'].notna().any():
+            try:
+                country = str(aq_df['country'].dropna().iloc[-1])
+            except Exception:
+                country = 'unknown'
+        if country is None:
+            country = 'unknown'
+        insert_df['country'] = insert_df['country'].fillna(country).astype(str)
     # Coerce date and days_before_forecast_day
     insert_df['date'] = pd.to_datetime(insert_df['date'], utc=True).dt.tz_convert(None)
     insert_df['days_before_forecast_day'] = insert_df['days_before_forecast_day'].fillna(1).astype(int)
