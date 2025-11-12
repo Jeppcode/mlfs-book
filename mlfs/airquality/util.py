@@ -333,16 +333,26 @@ def backfill_predictions_for_monitoring(weather_fg, air_quality_df, monitor_fg, 
     merge_cols = ['date', 'pm25'] + [c for c in ['street', 'country'] if c in available_id_cols]
     df = pd.merge(features_df, air_quality_df[merge_cols], on="date", how='left')
 
-    # Populate id columns
+    # Determine constant fallbacks from historical air_quality_df
+    fallbacks: dict[str, str | None] = {}
     for col in id_cols:
-        if col not in df.columns:
-            df[col] = None
-        fallback = None
+        fb = None
         if col in air_quality_df.columns:
             non_null = air_quality_df[col].dropna()
             if not non_null.empty:
-                fallback = non_null.iloc[0]
-        df[col] = df[col].where(df[col].notna(), fallback)
+                # ensure fallback is a python string
+                fb = str(non_null.iloc[0])
+        fallbacks[col] = fb
+
+    # Populate id columns and coerce to object with None for missing (not NaN)
+    for col in id_cols:
+        if col not in df.columns:
+            df[col] = fallbacks[col]
+        else:
+            df[col] = df[col].astype(object)
+            df[col] = df[col].where(pd.notna(df[col]), fallbacks[col])
+        # Replace any remaining pandas NA/NaN with None for Avro compatibility
+        df[col] = df[col].where(pd.notna(df[col]), None)
     df['days_before_forecast_day'] = 1
     hindcast_df = df
     df = df.drop('pm25', axis=1)
