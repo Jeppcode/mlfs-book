@@ -353,6 +353,8 @@ def backfill_predictions_for_monitoring(weather_fg, air_quality_df, monitor_fg, 
             df[col] = df[col].where(pd.notna(df[col]), fallbacks[col])
         # Replace any remaining pandas NA/NaN with None for Avro compatibility
         df[col] = df[col].where(pd.notna(df[col]), None)
+        # Ensure strings where present DELETE
+        df[col] = df[col].apply(lambda v: None if pd.isna(v) else str(v)) # DELTETE
     df['days_before_forecast_day'] = 1
     hindcast_df = df
     df = df.drop('pm25', axis=1)
