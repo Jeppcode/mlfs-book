@@ -291,8 +291,42 @@ def backfill_predictions_for_monitoring(weather_fg, air_quality_df, monitor_fg, 
     features_df = weather_fg.read()
     features_df = features_df.sort_values(by=['date'], ascending=True)
     features_df = features_df.tail(10)
-    features_df['predicted_pm25'] = model.predict(features_df[['temperature_2m_mean', 'precipitation_sum', 'wind_speed_10m_max', 'wind_direction_10m_dominant']])
-    df = pd.merge(features_df, air_quality_df[['date','pm25','street','country']], on="date")
+
+    # Determine expected feature names from the trained model (robust to weather-only vs lag models)
+    try:
+        booster = model.get_booster()
+        expected_features = booster.feature_names or []
+    except Exception:
+        expected_features = []
+
+    expects_lags = any(f.startswith("pm25_lag_") for f in expected_features)
+
+    if expects_lags:
+        # Compute pm25 lags from provided air_quality_df (assumed filtered to current sensor upstream)
+        air_quality_df = air_quality_df.sort_values(by=['date'], ascending=True)
+        merged = pd.merge(features_df[['date']], air_quality_df[['date', 'pm25']], on='date', how='left')
+        merged = merged.sort_values('date')
+        features_df['pm25_lag_1'] = merged['pm25'].shift(1).astype('float32')
+        features_df['pm25_lag_2'] = merged['pm25'].shift(2).astype('float32')
+        features_df['pm25_lag_3'] = merged['pm25'].shift(3).astype('float32')
+
+        # If model exposes feature names, respect their order; otherwise default order
+        feature_order = expected_features if expects_lags else [
+            'pm25_lag_1', 'pm25_lag_2', 'pm25_lag_3',
+            'temperature_2m_mean', 'precipitation_sum', 'wind_speed_10m_max', 'wind_direction_10m_dominant'
+        ]
+        # Predict only where all lag features are present
+        lag_mask = features_df[['pm25_lag_1', 'pm25_lag_2', 'pm25_lag_3']].notna().all(axis=1)
+        features_df['predicted_pm25'] = None
+        if lag_mask.any():
+            features_df.loc[lag_mask, 'predicted_pm25'] = model.predict(features_df.loc[lag_mask, feature_order])
+    else:
+        # Weather-only model
+        features_df['predicted_pm25'] = model.predict(
+            features_df[['temperature_2m_mean', 'precipitation_sum', 'wind_speed_10m_max', 'wind_direction_10m_dominant']]
+        )
+
+    df = pd.merge(features_df, air_quality_df[['date','pm25','street','country']], on="date", how='left')
     df['days_before_forecast_day'] = 1
     hindcast_df = df
     df = df.drop('pm25', axis=1)
