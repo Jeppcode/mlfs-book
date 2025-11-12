@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: checkout repo content
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: setup python
         uses: actions/setup-python@v5
@@ -45,4 +47,5 @@ jobs:
         with:
           commit_message: "Air Quality Dashboard published (${{ matrix.slug }})"
           file_pattern: 'docs/air-quality/assets/img/* docs/_includes/*'
+          branch: main
           push_options: '--force-with-lease'
