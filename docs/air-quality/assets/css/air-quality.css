@@ -1,0 +1,25 @@
+/* Simple responsive layout for the air-quality dashboard */
+.aq-dashboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.aq-card {
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+.aq-card h3 {
+  margin: 0 0 8px 0;
+  font-size: 1.05rem;
+}
+.aq-card img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 6px;
+  margin: 6px 0;
+}
+
