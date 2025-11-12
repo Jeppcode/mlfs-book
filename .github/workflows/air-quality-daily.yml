@@ -37,14 +37,10 @@ jobs:
           AQICN_API_KEY: ${{ secrets.AQICN_API_KEY }}
         run: |
           make aq-inference
-      - name: pull latest before commit
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git pull --rebase
 
       - name: github pages publish
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Air Quality Dashboard published (${{ matrix.slug }})"
           file_pattern: 'docs/air-quality/assets/img/* docs/_includes/*'
+          push_options: '--force-with-lease'
