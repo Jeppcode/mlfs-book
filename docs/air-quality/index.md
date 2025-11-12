@@ -4,7 +4,9 @@
 
 {% include air-quality.html %}
 
-![Forecast](./assets/img/pm25_forecast.png)
+![Forecast Kalmar](./assets/img/pm25_forecast_kalmar_borgholm.png)
+![Forecast Visby](./assets/img/pm25_forecast_visby_ostra_tvargatan.png)
+![Forecast Ljugarn](./assets/img/pm25_forecast_ljugarn_storvagen.png)
 
 
 There is also a Python program to interact with the air quality ML system using language (text, voice),

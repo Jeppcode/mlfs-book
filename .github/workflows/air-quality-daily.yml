@@ -2,12 +2,14 @@ name: air-quality-daily
 
 on:
   workflow_dispatch:
-    #schedule:
-    #- cron: '11 6 * * *'
 
 jobs:
   schedule_pipelines:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        slug: [kalmar_borgholm, visby_ostra_tvargatan, ljugarn_storvagen]
+      max-parallel: 1  # undvik commit-konflikter
 
     permissions:
       pages: write
@@ -22,37 +24,22 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
+
       - name: install python packages
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: execute python workflows from bash script
+      - name: run pipeline for one sensor
         env:
+          SENSOR_SLUG: ${{ matrix.slug }}
           HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
           AQICN_API_KEY: ${{ secrets.AQICN_API_KEY }}
-          AQICN_URL: ${{ secrets.AQICN_URL }}
-          AQICN_COUNTRY: ${{ secrets.AQICN_COUNTRY }}
-          AQICN_CITY: ${{ secrets.AQICN_CITY }}
-          AQICN_STREET: ${{ secrets.AQICN_STREET }}
         run: |
           make aq-inference
+
       - name: github pages publish
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "Air Quality Dashboard published"
-          commit_options: '--no-verify --signoff'
-
+          commit_message: "Air Quality Dashboard published (${{ matrix.slug }})"
           file_pattern: 'docs/air-quality/assets/img/* docs/_includes/*'
-
-          repository: .
-
-          status_options: '--untracked-files=no'
-
-          skip_dirty_check: true
-
-          skip_fetch: true
-
-          skip_checkout: true
-
-          push_options: '--force'
