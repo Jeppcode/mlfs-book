@@ -1,16 +1,13 @@
-name: air-quality-daily
+name: air-quality-reset
 
 on:
   workflow_dispatch:
-    #schedule:
-    #- cron: '11 6 * * *'
 
 jobs:
-  schedule_pipelines:
+  reset_and_backfill:
     runs-on: ubuntu-latest
 
     permissions:
-      pages: write
       contents: write
     env:
       HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
@@ -29,30 +26,17 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
+
       - name: install python packages
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: execute python workflows from bash script
+      - name: clean Hopsworks air-quality resources
         run: |
-          make aq-inference
-      - name: github pages publish
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "Air Quality Dashboard published"
-          commit_options: '--no-verify --signoff'
+          make aq-clean
 
-          file_pattern: 'docs/air-quality/assets/img/* docs/_includes/*'
+      - name: backfill feature groups (recreate schema)
+        run: |
+          make aq-features
 
-          repository: .
-
-          status_options: '--untracked-files=no'
-
-          skip_dirty_check: true
-
-          skip_fetch: true
-
-          skip_checkout: true
-
-          push_options: '--force'
