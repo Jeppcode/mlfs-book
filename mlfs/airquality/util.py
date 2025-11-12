@@ -326,7 +326,23 @@ def backfill_predictions_for_monitoring(weather_fg, air_quality_df, monitor_fg, 
             features_df[['temperature_2m_mean', 'precipitation_sum', 'wind_speed_10m_max', 'wind_direction_10m_dominant']]
         )
 
-    df = pd.merge(features_df, air_quality_df[['date','pm25','street','country']], on="date", how='left')
+    # Merge outcomes (pm25) and identifiers; fill missing id fields from historical df
+    id_cols = ['city', 'street', 'country']
+    # Ensure id columns exist in air_quality_df for lookup
+    available_id_cols = [c for c in id_cols if c in air_quality_df.columns]
+    merge_cols = ['date', 'pm25'] + [c for c in ['street', 'country'] if c in available_id_cols]
+    df = pd.merge(features_df, air_quality_df[merge_cols], on="date", how='left')
+
+    # Populate id columns
+    for col in id_cols:
+        if col not in df.columns:
+            df[col] = None
+        fallback = None
+        if col in air_quality_df.columns:
+            non_null = air_quality_df[col].dropna()
+            if not non_null.empty:
+                fallback = non_null.iloc[0]
+        df[col] = df[col].where(df[col].notna(), fallback)
     df['days_before_forecast_day'] = 1
     hindcast_df = df
     df = df.drop('pm25', axis=1)
