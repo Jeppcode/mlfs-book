@@ -7,7 +7,7 @@ from langchain.memory import ConversationBufferWindowMemory
 import torch
 import datetime
 from typing import Any, Dict, Union
-from functions.context_engineering import get_context_data
+from mlfs.airquality.context_engineering import get_context_data
 import os
 from safetensors.torch import load_model, save_model
 
@@ -22,10 +22,15 @@ def load_model(model_id: str = "teknium/OpenHermes-2.5-Mistral-7B") -> tuple:
         tuple: A tuple containing the loaded model and tokenizer.
     """
 
+    # Ensure all HF caches and artifacts go to temporary locations to avoid cluttering the machine
+    os.environ.setdefault("HF_HOME", "/tmp/hf")
+    os.environ.setdefault("HF_HUB_CACHE", "/tmp/hf/hub")
+    os.environ.setdefault("TRANSFORMERS_CACHE", "/tmp/hf/transformers")
+
     # Load the tokenizer for Mistral-7B-Instruct model
-    tokenizer_path = "./mistral/tokenizer"
+    tokenizer_path = "/tmp/mistral/tokenizer"
     if os.path.isdir(tokenizer_path) == False:
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir="/tmp/hf")
         tokenizer.save_pretrained(tokenizer_path)
     else:
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
@@ -36,25 +41,42 @@ def load_model(model_id: str = "teknium/OpenHermes-2.5-Mistral-7B") -> tuple:
     # Set the padding side to "right" to prevent warnings during tokenization
     tokenizer.padding_side = "right"
 
-    # BitsAndBytesConfig int-4 config
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16,
-    )
+    # Configure 4-bit quantization only if CUDA is available (bitsandbytes requires NVIDIA CUDA)
+    use_cuda_bnb = torch.cuda.is_available()
+    bnb_config = None
+    if use_cuda_bnb:
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+        )
 
     model_path = "/tmp/mistral/model"
     if os.path.exists(model_path):
         print("Loading model from disk")
         model_llm = AutoModelForCausalLM.from_pretrained(model_path)
     else:
-        # Load the Mistral-7B-Instruct model with quantization configuration
-        model_llm = AutoModelForCausalLM.from_pretrained(
-            model_id,
-            device_map="auto",
-            quantization_config=bnb_config,
-        )
+        # Load the model with the best-available setup for the current hardware
+        if bnb_config is not None:
+            # CUDA available: use 4-bit quantization (requires accelerate + bitsandbytes)
+            model_llm = AutoModelForCausalLM.from_pretrained(
+                model_id,
+                device_map="auto",
+                quantization_config=bnb_config,
+                cache_dir="/tmp/hf",
+            )
+        else:
+            # No CUDA: avoid bitsandbytes; prefer MPS on Apple Silicon, else CPU
+            on_mps = torch.backends.mps.is_available()
+            preferred_dtype = torch.float16 if on_mps else torch.float32
+            model_llm = AutoModelForCausalLM.from_pretrained(
+                model_id,
+                torch_dtype=preferred_dtype,
+                cache_dir="/tmp/hf",
+            )
+            if on_mps:
+                model_llm = model_llm.to("mps")
         model_llm.save_pretrained(model_path)
 
 

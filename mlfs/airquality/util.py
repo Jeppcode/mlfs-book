@@ -291,8 +291,70 @@ def backfill_predictions_for_monitoring(weather_fg, air_quality_df, monitor_fg, 
     features_df = weather_fg.read()
     features_df = features_df.sort_values(by=['date'], ascending=True)
     features_df = features_df.tail(10)
-    features_df['predicted_pm25'] = model.predict(features_df[['temperature_2m_mean', 'precipitation_sum', 'wind_speed_10m_max', 'wind_direction_10m_dominant']])
-    df = pd.merge(features_df, air_quality_df[['date','pm25','street','country']], on="date")
+
+    # Determine expected feature names from the trained model (robust to weather-only vs lag models)
+    try:
+        booster = model.get_booster()
+        expected_features = booster.feature_names or []
+    except Exception:
+        expected_features = []
+
+    expects_lags = any(f.startswith("pm25_lag_") for f in expected_features)
+
+    if expects_lags:
+        # Compute pm25 lags from provided air_quality_df (assumed filtered to current sensor upstream)
+        air_quality_df = air_quality_df.sort_values(by=['date'], ascending=True)
+        merged = pd.merge(features_df[['date']], air_quality_df[['date', 'pm25']], on='date', how='left')
+        merged = merged.sort_values('date')
+        features_df['pm25_lag_1'] = merged['pm25'].shift(1).astype('float32')
+        features_df['pm25_lag_2'] = merged['pm25'].shift(2).astype('float32')
+        features_df['pm25_lag_3'] = merged['pm25'].shift(3).astype('float32')
+
+        # If model exposes feature names, respect their order; otherwise default order
+        feature_order = expected_features if expects_lags else [
+            'pm25_lag_1', 'pm25_lag_2', 'pm25_lag_3',
+            'temperature_2m_mean', 'precipitation_sum', 'wind_speed_10m_max', 'wind_direction_10m_dominant'
+        ]
+        # Predict only where all lag features are present
+        lag_mask = features_df[['pm25_lag_1', 'pm25_lag_2', 'pm25_lag_3']].notna().all(axis=1)
+        features_df['predicted_pm25'] = None
+        if lag_mask.any():
+            features_df.loc[lag_mask, 'predicted_pm25'] = model.predict(features_df.loc[lag_mask, feature_order])
+    else:
+        # Weather-only model
+        features_df['predicted_pm25'] = model.predict(
+            features_df[['temperature_2m_mean', 'precipitation_sum', 'wind_speed_10m_max', 'wind_direction_10m_dominant']]
+        )
+
+    # Merge outcomes (pm25) and identifiers; fill missing id fields from historical df
+    id_cols = ['city', 'street', 'country']
+    # Ensure id columns exist in air_quality_df for lookup
+    available_id_cols = [c for c in id_cols if c in air_quality_df.columns]
+    merge_cols = ['date', 'pm25'] + [c for c in ['street', 'country'] if c in available_id_cols]
+    df = pd.merge(features_df, air_quality_df[merge_cols], on="date", how='left')
+
+    # Determine constant fallbacks from historical air_quality_df
+    fallbacks: dict[str, str | None] = {}
+    for col in id_cols:
+        fb = None
+        if col in air_quality_df.columns:
+            non_null = air_quality_df[col].dropna()
+            if not non_null.empty:
+                # ensure fallback is a python string
+                fb = str(non_null.iloc[0])
+        fallbacks[col] = fb
+
+    # Populate id columns and coerce to object with None for missing (not NaN)
+    for col in id_cols:
+        if col not in df.columns:
+            df[col] = fallbacks[col]
+        else:
+            df[col] = df[col].astype(object)
+            df[col] = df[col].where(pd.notna(df[col]), fallbacks[col])
+        # Replace any remaining pandas NA/NaN with None for Avro compatibility
+        df[col] = df[col].where(pd.notna(df[col]), None)
+        # Ensure strings where present DELETE
+        df[col] = df[col].apply(lambda v: None if pd.isna(v) else str(v)) # DELTETE
     df['days_before_forecast_day'] = 1
     hindcast_df = df
     df = df.drop('pm25', axis=1)

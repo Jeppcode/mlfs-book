@@ -8,13 +8,133 @@ import torch
 import sys
 import pandas as pd
 from openai import OpenAI
-from functions.air_quality_data_retrieval import (
+from mlfs.airquality.air_quality_data_retrieval import (
     get_historical_data_for_date,
     get_historical_data_in_date_range,
     get_future_data_in_date_range,
     get_future_data_for_date,
 )
 from typing import Any, Dict, List
+
+# -----------------------------
+# Rule-based, no-LLM utilities
+# -----------------------------
+_WEEKDAY_TO_INT = {
+    "monday": 0, "mon": 0,
+    "tuesday": 1, "tue": 1, "tues": 1,
+    "wednesday": 2, "wed": 2,
+    "thursday": 3, "thu": 3, "thur": 3, "thurs": 3,
+    "friday": 4, "fri": 4,
+    "saturday": 5, "sat": 5,
+    "sunday": 6, "sun": 6,
+}
+
+def _parse_relative_keyword_to_date(keyword: str, today: datetime.date) -> datetime.date | None:
+    k = keyword.lower()
+    if k == "today":
+        return today
+    if k == "yesterday":
+        return today - datetime.timedelta(days=1)
+    if k == "tomorrow":
+        return today + datetime.timedelta(days=1)
+    return None
+
+def _next_weekday(target_weekday: int, today: datetime.date) -> datetime.date:
+    days_ahead = (target_weekday - today.weekday() + 7) % 7
+    if days_ahead == 0:
+        days_ahead = 7
+    return today + datetime.timedelta(days=days_ahead)
+
+def _extract_dates_from_text(text: str) -> List[str]:
+    # Very simple extractor for YYYY-MM-DD
+    pattern = r"(20\d{2}-\d{2}-\d{2})"
+    return re.findall(pattern, text)
+
+def _contains_any(text: str, words: List[str]) -> bool:
+    t = text.lower()
+    return any(w in t for w in words)
+
+def _rule_based_function_selection(user_query: str) -> Dict[str, Any] | None:
+    """
+    Very small heuristic parser to map a user query to a function call without any LLM.
+    Returns a dict: {"name": <fn_name>, "arguments": {...}} or None if not enough info.
+    """
+    q = user_query.strip().lower()
+    today = datetime.date.today()
+
+    # 1) Explicit dates in query
+    dates = _extract_dates_from_text(q)
+    if len(dates) >= 2:
+        # Range detected
+        date_start, date_end = dates[0], dates[1]
+        is_future = _contains_any(q, ["will", "tomorrow", "next", "future"])
+        fn = "get_future_data_in_date_range" if is_future else "get_historical_data_in_date_range"
+        return {"name": fn, "arguments": {"date_start": date_start, "date_end": date_end}}
+    if len(dates) == 1:
+        d = dates[0]
+        # If it "will" or similar -> future single day (use range with same day)
+        is_future = _contains_any(q, ["will", "tomorrow", "next", "future"])
+        if is_future:
+            return {"name": "get_future_data_in_date_range", "arguments": {"date_start": d, "date_end": d}}
+        # Otherwise historical single day
+        return {"name": "get_historical_data_for_date", "arguments": {"date": d}}
+
+    # 2) Relative keywords
+    for kw in ["today", "yesterday", "tomorrow"]:
+        if kw in q:
+            target = _parse_relative_keyword_to_date(kw, today)
+            if target:
+                ds = target.strftime("%Y-%m-%d")
+                if kw == "tomorrow":
+                    return {"name": "get_future_data_in_date_range", "arguments": {"date_start": ds, "date_end": ds}}
+                else:
+                    return {"name": "get_historical_data_for_date", "arguments": {"date": ds}}
+
+    # 3) Natural phrases: last week / next week / rest of the week
+    if "last week" in q:
+        end = today
+        start = end - datetime.timedelta(days=7)
+        return {"name": "get_historical_data_in_date_range", "arguments": {
+            "date_start": start.strftime("%Y-%m-%d"),
+            "date_end": end.strftime("%Y-%m-%d"),
+        }}
+    if "next week" in q or "rest of the week" in q:
+        start = today
+        end = start + datetime.timedelta(days=7)
+        return {"name": "get_future_data_in_date_range", "arguments": {
+            "date_start": start.strftime("%Y-%m-%d"),
+            "date_end": end.strftime("%Y-%m-%d"),
+        }}
+
+    # 4) "next <weekday>"
+    for token in q.split():
+        t = token.strip(",.?!;:")
+        if t in _WEEKDAY_TO_INT and _contains_any(q, ["next", "will"]):
+            nd = _next_weekday(_WEEKDAY_TO_INT[t], today)
+            ds = nd.strftime("%Y-%m-%d")
+            return {"name": "get_future_data_in_date_range", "arguments": {"date_start": ds, "date_end": ds}}
+
+    # Not enough to choose
+    return None
+
+def get_context_data_rule_based(user_query: str, feature_view, weather_fg, model_air_quality) -> str:
+    """
+    Rule-based, no-LLM path. Tries to infer which function to call from the user query.
+    Returns a formatted string similar to the LLM path.
+    """
+    function = _rule_based_function_selection(user_query)
+    if not function:
+        return "No Function needed."
+
+    data = invoke_function(function, feature_view, weather_fg, model_air_quality)
+    if isinstance(data, str):
+        return data
+
+    if isinstance(data, pd.DataFrame):
+        return f'Air Quality Measurements:\n' + '\n'.join(
+            [f'Date: {row["date"]}; Air Quality: {row["pm25"]}' for _, row in data.iterrows()]
+        )
+    return ""
 
 
 def get_type_name(t: Any) -> str:
