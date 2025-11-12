@@ -2,12 +2,6 @@ name: air-quality-daily
 
 on:
   workflow_dispatch:
-    inputs:
-      reset:
-        description: 'Reset Hopsworks resources before running (clean + backfill)'
-        required: false
-        type: boolean
-        default: false
     #schedule:
     #- cron: '11 6 * * *'
 
@@ -18,13 +12,6 @@ jobs:
     permissions:
       pages: write
       contents: write
-    env:
-      HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
-      AQICN_API_KEY: ${{ secrets.AQICN_API_KEY }}
-      AQICN_URL: ${{ secrets.AQICN_URL }}
-      AQICN_COUNTRY: ${{ secrets.AQICN_COUNTRY }}
-      AQICN_CITY: ${{ secrets.AQICN_CITY }}
-      AQICN_STREET: ${{ secrets.AQICN_STREET }}
 
     steps:
       - name: checkout repo content
@@ -40,13 +27,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: optional reset and backfill
-        if: ${{ inputs.reset == true }}
-        run: |
-          make aq-clean
-          make aq-features
-
       - name: execute python workflows from bash script
+        env:
+          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+          AQICN_API_KEY: ${{ secrets.AQICN_API_KEY }}
+          AQICN_URL: ${{ secrets.AQICN_URL }}
+          AQICN_COUNTRY: ${{ secrets.AQICN_COUNTRY }}
+          AQICN_CITY: ${{ secrets.AQICN_CITY }}
+          AQICN_STREET: ${{ secrets.AQICN_STREET }}
         run: |
           make aq-inference
       - name: github pages publish
