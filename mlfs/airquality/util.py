@@ -192,9 +192,23 @@ def plot_air_quality_forecast(city: str, street: str, df: pd.DataFrame, file_pat
 
     # Set the y-axis to a logarithmic scale
     ax.set_yscale('log')
-    ax.set_yticks([0, 10, 25, 50, 100, 250, 500])
+    ax.set_yticks([1, 10, 25, 50, 100, 250, 500])
     ax.get_yaxis().set_major_formatter(plt.ScalarFormatter())
-    ax.set_ylim(bottom=1)
+    # Ensure forecast y-min is at least 85% of the minimum predicted value
+    if not hindcast:
+        try:
+            min_pred = pd.to_numeric(df['predicted_pm25'], errors='coerce').min()
+            if pd.notna(min_pred):
+                bottom = float(min_pred) * 0.85
+                # log-scale kräver > 0, men vi vill inte tvinga till 1 om värdena är mindre
+                if bottom <= 0:
+                    bottom = 0.1
+                ax.set_ylim(bottom=bottom)
+        except Exception:
+            pass
+    else:
+        # Säkerställ rimlig undergräns för hindcast
+        ax.set_ylim(bottom=0.1)
 
     # Set the labels and title
     ax.set_xlabel('Date')
