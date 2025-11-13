@@ -9,6 +9,19 @@
     <h3>Kalmar – Norra Långgatan</h3>
     <img src="./assets/img/pm25_forecast_kalmar_borgholm.png" alt="Forecast Kalmar – Norra Långgatan"/>
     <img src="./assets/img/pm25_hindcast_1day_kalmar_borgholm.png" alt="Hindcast Kalmar – Norra Långgatan"/>
+    <div class="aq-alert aq-alert-warning">
+    <p>
+        The sensor for Norra Långgatan, Borgholm (Kalmar County) has not been in use since
+        <strong>2025-08-21</strong>. We have therefore only used data up to this date for training.
+        The hindcast plot does not work for this station because no new daily outcome data is being published.
+    </p>
+    <p>
+        <em>This air quality monitoring station has been automatically disabled due to abnormal data readings.</em><br/>
+        For more information, check the data validation page for this sensor:
+        <a href="https://aqicn.org/station/validation/@71104" target="_blank" rel="noopener">aqicn.org/station/validation/@71104</a>
+    </p>
+    </div>
+
   </div>
   <div class="aq-card">
     <h3>Visby – Östra Tvärgatan</h3>
