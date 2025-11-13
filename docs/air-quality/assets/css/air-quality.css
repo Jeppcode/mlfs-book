@@ -23,3 +23,15 @@
   margin: 6px 0;
 }
 
+.aq-alert {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+.aq-alert-warning {
+  background: #fff7ed; /* orange-50 */
+  border: 1px solid #fed7aa; /* orange-200 */
+  color: #7c2d12; /* orange-900 */
+}
