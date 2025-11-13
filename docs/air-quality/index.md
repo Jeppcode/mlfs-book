@@ -29,6 +29,16 @@
     <img src="./assets/img/pm25_hindcast_1day_visby_ostra_tvargatan.png" alt="Hindcast Visby – Östra Tvärgatan"/>
   </div>
   <div class="aq-card">
+    <h3>Gotland: Visby – Österväg 17</h3>
+    <img src="./assets/img/pm25_forecast_visby_ostervag_17.png" alt="Forecast Visby – Österväg 17"/>
+    <img src="./assets/img/pm25_hindcast_1day_visby_ostervag_17.png" alt="Hindcast Visby – Österväg 17"/>
+  </div>
+  <div class="aq-card">
+    <h3>Gotland: Visby – Brömsebroväg 8</h3>
+    <img src="./assets/img/pm25_forecast_visby_bromsebrovag_8.png" alt="Forecast Visby – Brömsebroväg 8"/>
+    <img src="./assets/img/pm25_hindcast_1day_visby_bromsebrovag_8.png" alt="Hindcast Visby – Brömsebroväg 8"/>
+  </div>
+  <div class="aq-card">
     <h3>Gotland: Ljugarn – Storvägen</h3>
     <img src="./assets/img/pm25_forecast_ljugarn_storvagen.png" alt="Forecast Ljugarn – Storvägen"/>
     <img src="./assets/img/pm25_hindcast_1day_ljugarn_storvagen.png" alt="Hindcast Ljugarn – Storvägen"/>
