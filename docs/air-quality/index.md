@@ -6,7 +6,7 @@
 
 <div class="aq-dashboard">
   <div class="aq-card">
-    <h3>Kalmar – Norra Långgatan</h3>
+    <h3>Kalmar: Öland – Norra Långgatan</h3>
     <img src="./assets/img/pm25_forecast_kalmar_borgholm.png" alt="Forecast Kalmar – Norra Långgatan"/>
     <img src="./assets/img/pm25_hindcast_1day_kalmar_borgholm.png" alt="Hindcast Kalmar – Norra Långgatan"/>
     <div class="aq-alert aq-alert-warning">
@@ -24,12 +24,12 @@
 
   </div>
   <div class="aq-card">
-    <h3>Visby – Östra Tvärgatan</h3>
+    <h3>Gotland: Visby – Östra Tvärgatan</h3>
     <img src="./assets/img/pm25_forecast_visby_ostra_tvargatan.png" alt="Forecast Visby – Östra Tvärgatan"/>
     <img src="./assets/img/pm25_hindcast_1day_visby_ostra_tvargatan.png" alt="Hindcast Visby – Östra Tvärgatan"/>
   </div>
   <div class="aq-card">
-    <h3>Ljugarn – Storvägen</h3>
+    <h3>Gotland: Ljugarn – Storvägen</h3>
     <img src="./assets/img/pm25_forecast_ljugarn_storvagen.png" alt="Forecast Ljugarn – Storvägen"/>
     <img src="./assets/img/pm25_hindcast_1day_ljugarn_storvagen.png" alt="Hindcast Ljugarn – Storvägen"/>
   </div>
