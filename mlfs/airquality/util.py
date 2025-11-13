@@ -192,24 +192,9 @@ def plot_air_quality_forecast(city: str, street: str, df: pd.DataFrame, file_pat
 
     # Set the y-axis to a logarithmic scale
     ax.set_yscale('log')
-    # Log-skala får inte ha 0 som tick
-    ax.set_yticks([1, 10, 25, 50, 100, 250, 500])
+    ax.set_yticks([0, 10, 25, 50, 100, 250, 500])
     ax.get_yaxis().set_major_formatter(plt.ScalarFormatter())
-    # Ensure forecast y-min is at least 85% of the minimum predicted value
-    if not hindcast:
-        try:
-            min_pred = pd.to_numeric(df['predicted_pm25'], errors='coerce').min()
-            if pd.notna(min_pred):
-                bottom = float(min_pred) * 0.85
-                # log-scale kräver > 0, men vi vill inte tvinga till 1 om värdena är mindre
-                if bottom <= 0:
-                    bottom = 0.1
-                ax.set_ylim(bottom=bottom)
-        except Exception:
-            pass
-    else:
-        # Säkerställ rimlig undergräns för hindcast
-        ax.set_ylim(bottom=0.1)
+    ax.set_ylim(bottom=1)
 
     # Set the labels and title
     ax.set_xlabel('Date')
@@ -226,11 +211,10 @@ def plot_air_quality_forecast(city: str, street: str, df: pd.DataFrame, file_pat
     patches = [Patch(color=colors[i], label=f"{labels[i]}: {ranges[i][0]}-{ranges[i][1]}") for i in range(len(colors))]
     legend1 = ax.legend(handles=patches, loc='upper right', title="Air Quality Categories", fontsize='x-small')
 
-    # Use day-level ticks only to avoid 00/12 artifacts
-    locator = mdates.DayLocator(interval=1)
-    formatter = mdates.DateFormatter('%b-%d')
-    ax.xaxis.set_major_locator(locator)
-    ax.xaxis.set_major_formatter(formatter)
+    # Aim for ~10 annotated values on x-axis, will work for both forecasts ans hindcasts
+    if len(df.index) > 11:
+        every_x_tick = len(df.index) / 10
+        ax.xaxis.set_major_locator(MultipleLocator(every_x_tick))
 
     plt.xticks(rotation=45)
 
@@ -238,13 +222,6 @@ def plot_air_quality_forecast(city: str, street: str, df: pd.DataFrame, file_pat
         ax.plot(day, df['pm25'], label='Actual PM2.5', color='black', linewidth=2, marker='^', markersize=5, markerfacecolor='grey')
         legend2 = ax.legend(loc='upper left', fontsize='x-small')
         ax.add_artist(legend1)
-        # Lock hindcast window from 2025-11-11 to today + 2 days
-        try:
-            x_left = pd.Timestamp('2025-11-11')
-            x_right = pd.Timestamp.today().normalize() + pd.Timedelta(days=2)
-            ax.set_xlim(left=x_left, right=x_right)
-        except Exception:
-            pass
 
     # Ensure everything is laid out neatly
     plt.tight_layout()
