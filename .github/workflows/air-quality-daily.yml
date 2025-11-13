@@ -10,7 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        slug: [visby_ostervag_17, visby_bromsebrovag_8, kalmar_borgholm, visby_ostra_tvargatan, ljugarn_storvagen]
+        # slug: [visby_ostervag_17, visby_bromsebrovag_8, kalmar_borgholm, visby_ostra_tvargatan, ljugarn_storvagen]
+          slug: [kalmar_borgholm, visby_ostra_tvargatan, ljugarn_storvagen]
       max-parallel: 1  # undvik commit-konflikter
 
     permissions:
