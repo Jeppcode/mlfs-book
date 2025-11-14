@@ -236,6 +236,14 @@ def plot_air_quality_forecast(city: str, street: str, df: pd.DataFrame, file_pat
         ax.plot(day, df['pm25'], label='Actual PM2.5', color='black', linewidth=2, marker='^', markersize=5, markerfacecolor='grey')
         legend2 = ax.legend(loc='upper left', fontsize='x-small')
         ax.add_artist(legend1)
+        
+        # Section below for set x axis on hindcast
+        try:
+            x_left = pd.Timestamp('2025-11-14')
+            x_right = pd.Timestamp.today().normalize() + pd.Timedelta(days=3)
+            ax.set_xlim(left=x_left, right=x_right)
+        except Exception:
+            pass
 
     # Ensure everything is laid out neatly
     plt.tight_layout()
