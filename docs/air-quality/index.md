@@ -3,7 +3,6 @@
 <link rel="stylesheet" href="./assets/css/air-quality.css">
 
 <div class="aq-header">
-  <h1>Air Quality Dashboard</h1>
   <p>
     This page presents PM2.5 forecasts and hindcasts for five sensors located on Gotland and in Kalmar.
     The models predict air quality based on historical measurements and are updated daily.
