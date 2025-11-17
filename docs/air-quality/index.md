@@ -2,7 +2,13 @@
 
 <link rel="stylesheet" href="./assets/css/air-quality.css">
 
-![Hopsworks Logo](../titanic/assets/img/logo.png)
+<div class="aq-header">
+  <h1>Air Quality Dashboard</h1>
+  <p>
+    This page presents PM2.5 forecasts and hindcasts for five sensors located on Gotland and in Kalmar.
+    The models predict air quality based on historical measurements and are updated daily.
+  </p>
+</div>
 
 <div class="aq-dashboard">
   <div class="aq-card">
@@ -45,5 +51,3 @@
   </div>
 </div>
 
-There is also a Python program to interact with the air quality ML system using language (text, voice),
-powered by a [function-calling LLM](https://www.hopsworks.ai/dictionary/function-calling-with-llms).
